@@ -7,7 +7,8 @@ import (
 )
 
 type UserRepository interface {
-	Fetch(ctx context.Context, cursor string, num int64) (res []domain.User, nextCursor string, err error)
+	Fetch(ctx context.Context, page int64, num int64) (res []domain.User, nextPage int64, err error)
+	GetById(ctx context.Context, id int64) (res domain.User, err error)
 }
 
 // Add repos into service here
@@ -22,11 +23,18 @@ func NewUserService(u UserRepository) *UserService {
 	}
 }
 
-func (u *UserService) Fetch(ctx context.Context, cursor string, num int64) (res []domain.User, nextCursor string, err error) {
-	res, nextCursor, err = u.userRepo.Fetch(ctx, cursor, num)
+func (u *UserService) Fetch(ctx context.Context, page int64, num int64) (res []domain.User, nextPage int64, err error) {
+	res, nextPage, err = u.userRepo.Fetch(ctx, page, num)
 	if err != nil {
-		return nil, "", err
+		return nil, nextPage, err
 	}
+	return
+}
 
+func (u *UserService) GetById(ctx context.Context, id int64) (res domain.User, err error) {
+	res, err = u.userRepo.GetById(ctx, id)
+	if err != nil {
+		return domain.User{}, err
+	}
 	return
 }

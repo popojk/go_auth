@@ -7,7 +7,6 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"go-auth/domain"
-	"go-auth/tools"
 )
 
 type UserRepository struct {
@@ -52,21 +51,39 @@ func (m *UserRepository) fetch(ctx context.Context, query string, args ...interf
 	return result, nil
 }
 
-func (m *UserRepository) Fetch(ctx context.Context, cursor string, num int64) (res []domain.User, nextCursor string, err error) {
+func (m *UserRepository) Fetch(ctx context.Context, page int64, num int64) (res []domain.User, nextPage int64, err error) {
 	query := `SELECT id, username, password, avatar, updated_at, created_at
-	         FROM user ORDER BY created_at`
-	decodedCursor, err := tools.DecodeCursor(cursor)
-	if err != nil && cursor != "" {
-		return nil, "", domain.ErrBadParamInput
-	}
+	         FROM public.user ORDER BY created_at LIMIT $1 OFFSET ($2 - 1) * $1`
+	// decodedCursor, err := tools.DecodeCursor(cursor)
+	// if err != nil && cursor != "" {
+	// 	fmt.Println("error here")
+	// 	return nil, "", domain.ErrBadParamInput
+	// }
 
-	res, err = m.fetch(ctx, query, decodedCursor, num)
+	res, err = m.fetch(ctx, query, num, page)
 	if err != nil {
-		return nil, "", err
+		return nil, 0, err
 	}
 
 	if len(res) == int(num) {
-		nextCursor = tools.EncodeCursor(res[len(res)-1].CreatedAt)
+		nextPage = page + 1
+	}
+
+	return
+}
+
+func (m *UserRepository) GetById(ctx context.Context, id int64) (res domain.User, err error) {
+	query := `SELECT id, username, password, avatar, updated_at, created_at
+	          FROM public.user WHERE id = $1`
+	list, err := m.fetch(ctx, query, id)
+	if err != nil {
+		return domain.User{}, err
+	}
+
+	if len(list) > 0 {
+		res = list[0]
+	} else {
+		return res, domain.ErrNotFound
 	}
 
 	return
