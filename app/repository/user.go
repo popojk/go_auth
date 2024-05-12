@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"fmt"
 
 	"github.com/sirupsen/logrus"
 
@@ -86,5 +87,36 @@ func (m *UserRepository) GetById(ctx context.Context, id int64) (res domain.User
 		return res, domain.ErrNotFound
 	}
 
+	return
+}
+
+func (m *UserRepository) GetByUsername(ctx context.Context, username string) (res domain.User, err error) {
+	query := `SELECT id, username, password, avatar, updated_at, created_at
+	          From public.user WHERE username = $1`
+	list, err := m.fetch(ctx, query, username)
+	if err != nil {
+		return domain.User{}, err
+	}
+
+	if len(list) > 0 {
+		res = list[0]
+	} else {
+		return res, domain.ErrNotFound
+	}
+	return
+}
+
+func (m *UserRepository) Store(ctx context.Context, u *domain.User) (err error) {
+	query := `INSERT INTO public.user (username, password, avatar) VALUES ($1, $2, '')`
+	stmt, err := m.Conn.PrepareContext(ctx, query)
+	if err != nil {
+		fmt.Println("query in here")
+		return
+	}
+
+	_, err = stmt.ExecContext(ctx, u.Username, u.Password)
+	if err != nil {
+		return
+	}
 	return
 }
