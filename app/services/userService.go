@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"time"
 
 	"go-auth/domain"
 
@@ -13,6 +14,7 @@ type UserRepository interface {
 	GetById(ctx context.Context, id int64) (domain.User, error)
 	GetByUsername(ctx context.Context, username string) (domain.User, error)
 	Store(ctx context.Context, u *domain.User) error
+	Update(ctx context.Context, u *domain.User) error
 }
 
 // Add repos into service here
@@ -57,7 +59,6 @@ func (u *UserService) Store(ctx context.Context, ur *domain.User) (err error) {
 	if existedUser != (domain.User{}) {
 		return domain.ErrConflict
 	}
-
 	// Hash the password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(ur.Password), bcrypt.DefaultCost)
 	if err != nil {
@@ -65,7 +66,28 @@ func (u *UserService) Store(ctx context.Context, ur *domain.User) (err error) {
 	}
 	// Stored hashed password in User
 	ur.Password = string(hashedPassword)
-
 	err = u.userRepo.Store(ctx, ur)
 	return
+}
+
+func (u *UserService) Update(ctx context.Context, ur *domain.User) (err error) {
+	// Todo. Must check the update user is current user
+
+	// Get current user first
+	id := int64(ur.ID)
+	_, err = u.GetById(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	// hash password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(ur.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+
+	now := time.Now()
+	ur.UpdatedAt = &now
+	ur.Password = string(hashedPassword)
+	return u.userRepo.Update(ctx, ur)
 }

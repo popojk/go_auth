@@ -110,7 +110,6 @@ func (m *UserRepository) Store(ctx context.Context, u *domain.User) (err error) 
 	query := `INSERT INTO public.user (username, password, avatar) VALUES ($1, $2, '')`
 	stmt, err := m.Conn.PrepareContext(ctx, query)
 	if err != nil {
-		fmt.Println("query in here")
 		return
 	}
 
@@ -118,5 +117,30 @@ func (m *UserRepository) Store(ctx context.Context, u *domain.User) (err error) 
 	if err != nil {
 		return
 	}
+	return
+}
+
+func (m *UserRepository) Update(ctx context.Context, u *domain.User) (err error) {
+	query := `UPDATE public.user SET username = $1, password = $2, updated_at = $3 where id = $4`
+	stmt, err := m.Conn.PrepareContext(ctx, query)
+	if err != nil {
+		return
+	}
+
+	res, err := stmt.ExecContext(ctx, u.Username, u.Password, u.UpdatedAt, u.ID)
+	if err != nil {
+		return
+	}
+
+	affect, err := res.RowsAffected()
+	if err != nil {
+		return
+	}
+
+	if affect != 1 {
+		err = fmt.Errorf("weird behavior. Total affected: %d", affect)
+		return
+	}
+
 	return
 }

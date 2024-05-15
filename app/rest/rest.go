@@ -20,6 +20,7 @@ type UserService interface {
 	Fetch(ctx context.Context, page int64, num int64) ([]domain.User, int64, error)
 	GetById(ctx context.Context, id int64) (domain.User, error)
 	Store(ctx context.Context, u *domain.User) error
+	Update(ctx context.Context, u *domain.User) error
 }
 
 type RestHandler struct {
@@ -36,6 +37,7 @@ func NewRestHandler(r *gin.Engine, userService UserService) {
 	r.GET("/users", handler.FetchUser)
 	r.GET("/users/detail", handler.GetById)
 	r.POST("/users", handler.Store)
+	r.PUT("/users", handler.Update)
 }
 
 // User service functions
@@ -110,6 +112,28 @@ func (u *RestHandler) Store(c *gin.Context) {
 
 	c.JSON(http.StatusCreated, user)
 
+}
+
+func (u *RestHandler) Update(c *gin.Context) {
+	var user domain.User
+	if err := c.Bind(&user); err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		return
+	}
+
+	ok, err := isRequestValid(&user)
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"errpr": err.Error()})
+		return
+	}
+
+	ctx := c.Request.Context()
+	if err := u.UserService.Update(ctx, &user); err != nil {
+		c.JSON(getStatusCode(err), gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, user)
 }
 
 func getStatusCode(err error) int {
