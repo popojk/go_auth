@@ -121,13 +121,31 @@ func (m *UserRepository) Store(ctx context.Context, u *domain.User) (err error) 
 }
 
 func (m *UserRepository) Update(ctx context.Context, u *domain.User) (err error) {
-	query := `UPDATE public.user SET username = $1, password = $2, updated_at = $3 where id = $4`
+	query := `UPDATE public.user SET`
+	args := []interface{}{}
+	argsCounter := 1
+
+	if u.Username != "" {
+		query += fmt.Sprintf(" username = $%d,", argsCounter)
+		args = append(args, u.Username)
+		argsCounter++
+	}
+	if u.Password != "" {
+		query += fmt.Sprintf(" password = $%d,", argsCounter)
+		args = append(args, u.Password)
+		argsCounter++
+	}
+
+	query += fmt.Sprintf(" updated_at = $%d WHERE id = $%d", argsCounter, argsCounter+1)
+	args = append(args, u.UpdatedAt, u.ID)
+
 	stmt, err := m.Conn.PrepareContext(ctx, query)
 	if err != nil {
 		return
 	}
+	defer stmt.Close()
 
-	res, err := stmt.ExecContext(ctx, u.Username, u.Password, u.UpdatedAt, u.ID)
+	res, err := stmt.ExecContext(ctx, args...)
 	if err != nil {
 		return
 	}
@@ -141,6 +159,28 @@ func (m *UserRepository) Update(ctx context.Context, u *domain.User) (err error)
 		err = fmt.Errorf("weird behavior. Total affected: %d", affect)
 		return
 	}
+	return
+}
+
+func (u *UserRepository) Delete(ctx context.Context, id int64) (err error) {
+	query := `DELETE FROM public.user WHERE id = $1`
+
+	stmt, err := u.Conn.PrepareContext(ctx, query)
+	if err != nil {
+		return
+	}
+
+	res, err := stmt.ExecContext(ctx, id)
+	if err != nil {
+		return
+	}
+
+	rowsAffect, err := res.RowsAffected()
+	if err != 1 {
+		err = fmt.Errorf("wierd behavior, Total Affected: %d", rowsAffect)
+		return
+	}
 
 	return
+
 }

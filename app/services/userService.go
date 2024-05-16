@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"go-auth/domain"
@@ -15,6 +16,7 @@ type UserRepository interface {
 	GetByUsername(ctx context.Context, username string) (domain.User, error)
 	Store(ctx context.Context, u *domain.User) error
 	Update(ctx context.Context, u *domain.User) error
+	Delete(ctx context.Context, id int64) error
 }
 
 // Add repos into service here
@@ -74,20 +76,45 @@ func (u *UserService) Update(ctx context.Context, ur *domain.User) (err error) {
 	// Todo. Must check the update user is current user
 
 	// Get current user first
-	id := int64(ur.ID)
-	_, err = u.GetById(ctx, id)
+	currentUser, err := u.GetById(ctx, int64(ur.ID))
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get current user: %w", err)
 	}
 
 	// hash password
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(ur.Password), bcrypt.DefaultCost)
-	if err != nil {
-		return err
+	if ur.Password != "" {
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(ur.Password), bcrypt.DefaultCost)
+		if err != nil {
+			return err
+		}
+		ur.Password = string(hashedPassword)
+	} else {
+		ur.Password = currentUser.Password
 	}
 
 	now := time.Now()
 	ur.UpdatedAt = &now
-	ur.Password = string(hashedPassword)
-	return u.userRepo.Update(ctx, ur)
+
+	if err := u.userRepo.Update(ctx, ur); err != nil {
+		return fmt.Errorf("failed to update user: %w", err)
+	}
+
+	return
+}
+
+func (u *UserService) Delete(ctx context.Context, id int64) (err error) {
+	// Todo. Must check the update user is current user
+
+	// get current user first
+	existedUser, err := u.userRepo.GetById(ctx, id)
+	if err != nil {
+		return
+	}
+	if existedUser == (domain.User{}) {
+		return domain.ErrNotFound
+	}
+	if err := u.userRepo.Delete(ctx, id); err != nil {
+		return fmt.Errorf("failed to delete user: %w", err)
+	}
+	return
 }

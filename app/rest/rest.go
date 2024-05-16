@@ -21,6 +21,7 @@ type UserService interface {
 	GetById(ctx context.Context, id int64) (domain.User, error)
 	Store(ctx context.Context, u *domain.User) error
 	Update(ctx context.Context, u *domain.User) error
+	Delete(ctx context.Context, id int64) error
 }
 
 type RestHandler struct {
@@ -38,6 +39,7 @@ func NewRestHandler(r *gin.Engine, userService UserService) {
 	r.GET("/users/detail", handler.GetById)
 	r.POST("/users", handler.Store)
 	r.PUT("/users", handler.Update)
+	r.DELETE("/users", handler.Delete)
 }
 
 // User service functions
@@ -128,12 +130,28 @@ func (u *RestHandler) Update(c *gin.Context) {
 	}
 
 	ctx := c.Request.Context()
-	if err := u.UserService.Update(ctx, &user); err != nil {
+	if err = u.UserService.Update(ctx, &user); err != nil {
 		c.JSON(getStatusCode(err), gin.H{"error": err.Error()})
 		return
 	}
 
 	c.JSON(http.StatusCreated, user)
+}
+
+func (u *RestHandler) Delete(c *gin.Context) {
+	idP, err := strconv.Atoi(c.Query("id"))
+	if err != nil {
+		c.JSON(http.StatusNotFound, domain.ErrNotFound.Error())
+	}
+
+	id := int64(idP)
+	ctx := c.Request.Context()
+
+	err = u.UserService.Delete(ctx, id)
+	if err != nil {
+		c.JSON(getStatusCode(err), ResponseError{Message: err.Error()})
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Done!"})
 }
 
 func getStatusCode(err error) int {
