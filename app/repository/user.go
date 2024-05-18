@@ -176,7 +176,7 @@ func (u *UserRepository) Delete(ctx context.Context, id int64) (err error) {
 	}
 
 	rowsAffect, err := res.RowsAffected()
-	if err != 1 {
+	if rowsAffect != 1 {
 		err = fmt.Errorf("wierd behavior, Total Affected: %d", rowsAffect)
 		return
 	}

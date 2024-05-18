@@ -13,6 +13,11 @@ type User struct {
 	CreatedAt time.Time  `json:"created_at"`
 }
 
+type LoginUser struct {
+	Username string `json:"username" validate:"required"`
+	Password string `json:"password" validate:"required"`
+}
+
 type PatchUser struct {
 	ID        int64     `json:"id"`
 	Username  *string   `json:"username"`

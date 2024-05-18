@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"go-auth/domain"
 
@@ -24,15 +25,23 @@ type UserService interface {
 	Delete(ctx context.Context, id int64) error
 }
 
+type AuthService interface {
+	Login(ctx context.Context, lu *domain.LoginUser) (string, error)
+	VerifyToken(ctx context.Context, jwtToken string) error
+	CheckTokenInRedis(ctx context.Context, jwtToken string) (bool, error)
+}
+
 type RestHandler struct {
 	UserService UserService
+	AuthService AuthService
 }
 
 const defaultNum = 10
 
-func NewRestHandler(r *gin.Engine, userService UserService) {
+func NewRestHandler(r *gin.Engine, userService UserService, authService AuthService) {
 	handler := RestHandler{
 		UserService: userService,
+		AuthService: authService,
 	}
 
 	r.GET("/users", handler.FetchUser)
@@ -40,6 +49,9 @@ func NewRestHandler(r *gin.Engine, userService UserService) {
 	r.POST("/users", handler.Store)
 	r.PUT("/users", handler.Update)
 	r.DELETE("/users", handler.Delete)
+
+	r.POST("/login", handler.Login)
+	r.GET("/verify", handler.Verify)
 }
 
 // User service functions
@@ -152,6 +164,61 @@ func (u *RestHandler) Delete(c *gin.Context) {
 		c.JSON(getStatusCode(err), ResponseError{Message: err.Error()})
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "Done!"})
+}
+
+// Auth service functions
+func (u *RestHandler) Login(c *gin.Context) {
+	var loginUser domain.LoginUser
+	if err := c.Bind(&loginUser); err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx := c.Request.Context()
+	token, err := u.AuthService.Login(ctx, &loginUser)
+	if err != nil {
+		c.JSON(http.StatusForbidden, ResponseError{Message: err.Error()})
+	}
+	c.JSON(http.StatusOK, gin.H{"token": token})
+}
+
+func (u *RestHandler) Verify(c *gin.Context) {
+	// get authorization from request
+	authHeader := c.GetHeader("Authorization")
+	if authHeader == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header is missing"})
+		return
+	}
+
+	// get bearer token
+	bearerToken := strings.TrimPrefix(authHeader, "Bearer ")
+	if bearerToken == authHeader {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Bearer token is missing"})
+		return
+	}
+
+	// verify token
+	ctx := c.Request.Context()
+	// check whether jwt token in redis first
+	existed, err := u.AuthService.CheckTokenInRedis(ctx, bearerToken)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get token from redis"})
+		return
+	}
+	// return result if jwt token existed in redis
+	if existed {
+		c.JSON(http.StatusOK, gin.H{"message": existed})
+		return
+	}
+	// if jwt token not in redis, call verify function
+	err = u.AuthService.VerifyToken(ctx, bearerToken)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+
+	// token verify successfully
+	c.JSON(http.StatusOK, gin.H{"message": true})
 }
 
 func getStatusCode(err error) int {
